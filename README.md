@@ -1,18 +1,124 @@
-# React + Vite
+# English Mentor AI 🎓🤖
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+# Aplicação web de aprendizado de inglês com Inteligência Artificial, focada em conversação, correção automática, gamificação e prática de pronúncia.
 
-Currently, two official plugins are available:
+⚠️ Projeto em desenvolvimento
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- ✨ Funcionalidades atuais
+- ✅ Professor de inglês com IA
+- ✅ Conversação em inglês
+- ✅ Correção automática com Gemini AI
+- ✅ Correção de pronúncia
+- ✅ Transcrição de voz
+- ✅ Tarefas diárias
+- ✅ Sistema de XP
+- ✅ Sistema de níveis
+- ✅ Sistema de ranking
+- ✅ Gamificação estilo Duolingo
+- ✅ Exercícios por nível
+- ✅ Quiz com múltipla escolha
+- ✅ Revisão de erros
+- ✅ Reconhecimento de voz
+- ✅ Histórico de progresso
+- ✅ Layout moderno e responsivo
+- 🚧 Em desenvolvimento
+- 🔄 Backend Spring Boot
+- 🔄 Banco de dados PostgreSQL
+- 🔄 Login e autenticação
+- 🔄 Ranking online
+- 🔄 Salvamento em nuvem
+- 🔄 Professor IA em tempo real
+- 🔄 Voz personalizada
+- 🔄 Sistema multiplayer
+-🔄 App mobile React Native
+-🔄 Dashboard administrativo
+-🔄 Sistema de streak diária
+-🔄 Conquistas avançadas
+-🔄 Tradução em tempo real
+# 🛠️ Tecnologias utilizadas
+- Frontend
+- React
+- Vite
+- JavaScript
+- CSS3
+- Lucide Icons
+- Inteligência Artificial
+- Gemini AI
+- Google GenAI SDK
+- Reconhecimento de voz
+- Web Speech API
+- Futuro Backend
+- Spring Boot
+- PostgreSQL
+- JWT
+- Docker
+- WebSocket
+# 📷 Preview
+- Dashboard
+- Sistema de XP
+- Níveis
+- Ranking
+- Missões diárias
+- Professor IA
+- Conversa por voz
+- Correção automática
+- Tradução
+- Feedback da IA
+- Tarefas
+- Exercícios por nível
+- Áudio e texto
+- Correção da IA
+- Pronúncia
+- Aulas
+- Quiz interativo
+- Revisão de erros
+- Speaking
+- Exercícios de listening
+# ⚙️ Configuração do projeto
+- 1. Clone o projeto
+- git clone URL_DO_REPOSITORIO
+- 2. Entre na pasta
+- cd english-mentor
+- 3. Instale as dependências
+- npm install
+- 4. Crie o arquivo .env
+- VITE_GEMINI_API_KEY=SUA_CHAVE_GEMINI
+- 5. Rode o projeto
+- npm run dev
+#🔑 Gemini API
 
-## React Compiler
+- Crie sua chave gratuitamente:
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+- Google AI Studio
 
-Note: This will impact Vite dev & build performances.
+-⚠️ Observações
+- O reconhecimento de voz funciona melhor no Google Chrome.
+- O projeto ainda está em desenvolvimento.
+- Algumas funcionalidades podem sofrer alterações.
+- O frontend atualmente usa a chave Gemini diretamente no navegador.
+- Futuramente a IA será protegida via backend Spring Boot.
+-📌 Objetivo do projeto
 
-## Expanding the ESLint configuration
+# O objetivo do English Mentor AI é criar uma plataforma moderna de aprendizado de idiomas utilizando Inteligência Artificial, tornando o estudo mais:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- Interativo
+- Gamificado
+- Conversacional
+- Dinâmico
+- Personalizado
+
+# 👨‍💻 Autor
+
+-Bruno Rodrigues Farias
+
+-Java
+-Spring Boot
+-React
+-React Native
+-IA
+-Backend
+-Fullstack
+
+-GitHub:
+
+-Bruno Rodrigues Farias GitHub
