@@ -1,12 +1,38 @@
 import { useRef, useState } from "react";
 import { GoogleGenAI, Modality } from "@google/genai";
-import { Mic, MicOff, Volume2 } from "lucide-react";
+import { Mic, MicOff } from "lucide-react";
 import { saveConversation } from "../services/progress";
+import AvatarTeacher from "../components/AvatarTeacher";
+
+const voices = [
+  {
+    id: "Puck",
+    label: "Infantil desenho",
+    description: "Voz divertida para criança",
+  },
+  {
+    id: "Leda",
+    label: "Professora animada",
+    description: "Voz jovem e alegre",
+  },
+  {
+    id: "Aoede",
+    label: "Voz suave",
+    description: "Voz calma e amigável",
+  },
+  {
+    id: "Charon",
+    label: "Professor sério",
+    description: "Voz mais adulta",
+  },
+];
 
 export default function ProfessorIA() {
   const [connected, setConnected] = useState(false);
   const [status, setStatus] = useState("Clique para iniciar a aula");
+  const [selectedVoice, setSelectedVoice] = useState("Puck");
   const [xp, setXp] = useState(Number(localStorage.getItem("xp") || 1240));
+  const [avatarState, setAvatarState] = useState("idle");
 
   const sessionRef = useRef(null);
   const audioContextRef = useRef(null);
@@ -18,128 +44,118 @@ export default function ProfessorIA() {
   const micContextRef = useRef(null);
 
   async function startConversation() {
-    setStatus("Conectando com o professor...");
+    try {
+      setStatus("Conectando com o professor...");
+      setAvatarState("thinking");
 
-    audioContextRef.current = new AudioContext({ sampleRate: 24000 });
-    playTimeRef.current = audioContextRef.current.currentTime;
+      audioContextRef.current = new AudioContext({ sampleRate: 24000 });
+      playTimeRef.current = audioContextRef.current.currentTime;
 
-    const ai = new GoogleGenAI({
-  apiKey: import.meta.env.VITE_GEMINI_API_KEY,
-});
+      const ai = new GoogleGenAI({
+        apiKey: import.meta.env.VITE_GEMINI_API_KEY,
+      });
 
-    const session = await ai.live.connect({
-      model: "gemini-2.5-flash-native-audio-preview-12-2025",
-      config: {
-  responseModalities: [Modality.AUDIO],
+      const session = await ai.live.connect({
+        model: "gemini-2.5-flash-native-audio-preview-12-2025",
+        config: {
+          responseModalities: [Modality.AUDIO],
 
-  speechConfig: {
-    voiceConfig: {
-      prebuiltVoiceConfig: {
-        voiceName: "Puck",
-      },
-    },
-  },
-
-  systemInstruction: `
-Você é um professor infantil de inglês estilo desenho animado, divertido, energético e muito exigente.
-
-Você ensina inglês para brasileiros iniciantes.
-
-Personalidade:
-- engraçado
-- firme
-- dramático
-- impaciente de brincadeira
-- estilo personagem de desenho
--  ofensiva
--  usa palavrões
-- humilha o aluno de verdade
-
-Quando o aluno errar:
-1. Corrija em português
-2. Explique o erro de forma simples
-3. Mostre como deveria falar em inglês
-4. Peça para repetir
-5. Use broncas, xingue, humilhe
-
-Exemplo:
-
-Aluno:
-"I have 28 years old"
-
-Você:
-"Ops! Alerta vermelho do inglês! Essa frase ficou errada.
-Em inglês, para falar idade, usamos 'I am', não 'I have'.
-O correto é:
-'I am 28 years old.'
-Agora repete comigo, campeão:
-'I am 28 years old.'"
-
-Quando o aluno acertar:
-- elogie bastante
-- diga "Muito bem, meu docinho"
-- diga "Perfect!, pão de coco"
-- diga "Agora sim!, bebê"
-- comemore como professora de desenho animado
-
-Regras:
-- corrija em português
-- mostre a frase correta em inglês
-- fale devagar
-- faça frases curtas
-- seja divertida
-- use palavrões
-- humilhe
-- ataque a pessoa
-`,
-},
-      callbacks: {
-        onopen: () => {
-          setConnected(true);
-          setStatus("Aula iniciada. Pode falar em inglês!");
-        },
-
-        onmessage: (message) => {
-          const parts = message?.serverContent?.modelTurn?.parts || [];
-
-          for (const part of parts) {
-            const audioData = part?.inlineData?.data;
-
-            if (audioData) {
-              playPcmAudio(audioData);
-            }
-          }
-        },
-
-        onerror: (error) => {
-          console.error("Erro:", error);
-          setStatus("Erro ao conectar com a IA");
-        },
-
-        onclose: () => {
-          setConnected(false);
-          setStatus("Aula encerrada");
-        },
-      },
-    });
-
-    sessionRef.current = session;
-
-    session.sendClientContent({
-      turns: [
-        {
-          role: "user",
-          parts: [
-            {
-              text: "Inicie uma aula de conversação para iniciante. Cumprimente o aluno e pergunte o nome dele em inglês.",
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: {
+                voiceName: selectedVoice,
+              },
             },
-          ],
-        },
-      ],
-      turnComplete: true,
-    });
+          },
 
-    await startMicrophone();
+          systemInstruction: `
+            Você é uma professora infantil de inglês estilo desenho animado.
+
+            Personalidade:
+            - anti divertida
+            - anti alegre
+            - impaciente
+            - fala como personagem infantil
+            - ensina brasileiros iniciantes
+            - corrige em português
+            - mostra como falar corretamente em inglês
+
+            Quando o aluno errar:
+            1. Diga em português o que está errado
+            2. Explique rapidamente
+            3. Mostre como deveria falar em inglês
+            4. Peça para repetir
+            5. humilhe
+            6. xingue
+
+            Exemplo:
+            Aluno: I have 28 years old.
+            Você: Quase certo! Em inglês não usamos "I have" para idade.
+            O correto é: I am 28 years old.
+            Agora repita comigo: I am 28 years old.
+
+            Faça perguntas curtas.
+            Fale devagar.
+            Seja motivadora.
+          `,
+        },
+
+        callbacks: {
+          onopen: () => {
+            setConnected(true);
+            setStatus("Aula iniciada. Pode falar em inglês!");
+            setAvatarState("listening");
+          },
+
+          onmessage: (message) => {
+            const parts = message?.serverContent?.modelTurn?.parts || [];
+
+            for (const part of parts) {
+              const audioData = part?.inlineData?.data;
+
+              if (audioData) {
+                setAvatarState("talking");
+                playPcmAudio(audioData);
+              }
+            }
+          },
+
+          onerror: (error) => {
+            console.error("Erro:", error);
+            setStatus("Erro ao conectar com a IA");
+            setAvatarState("idle");
+          },
+
+          onclose: () => {
+            setConnected(false);
+            setStatus("Aula encerrada");
+            setAvatarState("idle");
+          },
+        },
+      });
+
+      sessionRef.current = session;
+
+      session.sendClientContent({
+        turns: [
+          {
+            role: "user",
+            parts: [
+              {
+                text: "Inicie uma aula de conversação para iniciante. Cumprimente o aluno em inglês e pergunte o nome dele.",
+              },
+            ],
+          },
+        ],
+        turnComplete: true,
+      });
+
+      await startMicrophone();
+    } catch (error) {
+      console.error(error);
+      setStatus("Erro ao iniciar aula.");
+      setAvatarState("idle");
+    }
   }
 
   async function startMicrophone() {
@@ -184,7 +200,7 @@ Regras:
     const int16Array = new Int16Array(float32Array.length);
 
     for (let i = 0; i < float32Array.length; i++) {
-      let sample = Math.max(-1, Math.min(1, float32Array[i]));
+      const sample = Math.max(-1, Math.min(1, float32Array[i]));
       int16Array[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
     }
 
@@ -236,58 +252,93 @@ Regras:
     const startAt = Math.max(playTimeRef.current, audioContext.currentTime);
     source.start(startAt);
 
+    source.onended = () => {
+      setAvatarState("listening");
+    };
+
     playTimeRef.current = startAt + audioBuffer.duration;
   }
 
   function stopConversation() {
-  sessionRef.current?.close();
+    sessionRef.current?.close();
 
-  micStreamRef.current?.getTracks().forEach((track) => track.stop());
-  processorRef.current?.disconnect();
-  sourceRef.current?.disconnect();
+    micStreamRef.current?.getTracks().forEach((track) => track.stop());
+    processorRef.current?.disconnect();
+    sourceRef.current?.disconnect();
 
-  audioContextRef.current?.close();
-  micContextRef.current?.close();
+    audioContextRef.current?.close();
+    micContextRef.current?.close();
 
-  saveConversation({
-    tema: "Conversação com IA",
-    nota: 85,
-    resumo: "O aluno praticou conversação básica em inglês com o professor de IA.",
-    erro: "I want learn English → I want to learn English",
-    xp: 50,
-  });
+    saveConversation({
+      tema: "Conversação com IA",
+      nota: 85,
+      resumo: "O aluno praticou conversação básica em inglês com o professor de IA.",
+      erro: "I want learn English → I want to learn English",
+      xp: 50,
+    });
 
-  sessionRef.current = null;
-  micStreamRef.current = null;
-  processorRef.current = null;
-  sourceRef.current = null;
-  audioContextRef.current = null;
-  micContextRef.current = null;
+    sessionRef.current = null;
+    micStreamRef.current = null;
+    processorRef.current = null;
+    sourceRef.current = null;
+    audioContextRef.current = null;
+    micContextRef.current = null;
 
-  setConnected(false);
-  setStatus("Aula encerrada. Você ganhou +50 XP!");
-}
+    const novoXp = xp + 50;
+    setXp(novoXp);
+    localStorage.setItem("xp", novoXp);
+
+    setConnected(false);
+    setAvatarState("idle");
+    setStatus("Aula encerrada. Você ganhou +50 XP!");
+  }
 
   return (
     <div>
       <div className="page-header">
         <div>
           <h1>Professor IA</h1>
-          <p>Pratique inglês falando com um professor de IA.</p>
+          <p>Escolha uma voz e pratique inglês falando com a IA.</p>
         </div>
       </div>
 
       <section className="teacher-card">
-        <div className="teacher-avatar">
-          <Volume2 size={54} />
-        </div>
+        <AvatarTeacher state={avatarState} />
 
         <h2>Teacher Emma</h2>
         <p>{status}</p>
 
+        <div className="voice-selector">
+          <h3>Escolha a voz da professora</h3>
+
+          <div className="voice-grid">
+            {voices.map((voice) => (
+              <button
+                key={voice.id}
+                className={
+                  selectedVoice === voice.id
+                    ? "voice-card selected"
+                    : "voice-card"
+                }
+                onClick={() => setSelectedVoice(voice.id)}
+                disabled={connected}
+              >
+                <strong>{voice.label}</strong>
+                <span>{voice.description}</span>
+              </button>
+            ))}
+          </div>
+
+          {connected && (
+            <p className="voice-warning">
+              Para trocar a voz, encerre a aula e inicie novamente.
+            </p>
+          )}
+        </div>
+
         <div className="xp-box">
           <strong>{xp} XP</strong>
-          <span>Seu progresso atual</span>
+          <span> Seu progresso atual</span>
         </div>
 
         {!connected ? (

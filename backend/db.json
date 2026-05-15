@@ -1,0 +1,34 @@
+{
+  "users": [
+    {
+      "id": "bb5ef484-816d-4804-a512-9be4f7a4b077",
+      "name": "bruno",
+      "email": "brunorodrigues1616@gmail.com",
+      "passwordHash": "$2b$10$XT8kAYWjRHtlGCxPltQqmO6Su8Nlh3fEDQpaoGQhgkBzpJdF0d/kG",
+      "xp": 0,
+      "streak": 0,
+      "level": "Iniciante",
+      "rank": "Bronze",
+      "completedTasks": [],
+      "completedLessons": [],
+      "createdAt": "2026-05-15T18:12:30.961Z"
+    },
+    {
+      "id": "0828fbe0-dd11-441e-b08f-24ff46729e1d",
+      "name": "Joao",
+      "email": "brunorodrigues162@gmail.com",
+      "passwordHash": "$2b$10$gt70xG4vK1KFf552A5ItuOAbBSfngIPS3eabVIKj0QTFyV2uWath2",
+      "xp": 80,
+      "streak": 1,
+      "level": "Iniciante",
+      "rank": "Bronze",
+      "completedTasks": [],
+      "completedLessons": [
+        1
+      ],
+      "createdAt": "2026-05-15T18:24:24.064Z"
+    }
+  ],
+  "tasks": [],
+  "conversations": []
+}

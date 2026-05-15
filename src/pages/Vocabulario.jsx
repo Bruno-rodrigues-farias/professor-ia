@@ -10,10 +10,11 @@ export default function Vocabulario() {
         </div>
       </div>
 
-      <div className="cards-grid">
-        {vocabulario.map((item, index) => (
-          <div className="word-card" key={index}>
+      <div className="vocab-grid">
+        {vocabulario.map((item) => (
+          <div className="vocab-card" key={item.palavra}>
             <span className="badge">{item.categoria}</span>
+
             <h2>{item.palavra}</h2>
             <strong>{item.traducao}</strong>
             <p>{item.exemplo}</p>

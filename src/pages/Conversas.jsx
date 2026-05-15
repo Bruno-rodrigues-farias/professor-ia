@@ -1,7 +1,26 @@
-import { getProgress } from "../services/progress";
+import { useEffect, useState } from "react";
+import { clearConversations, getConversations } from "../services/appData";
 
 export default function Conversas() {
-  const progress = getProgress();
+  const [conversations, setConversations] = useState([]);
+
+  async function loadConversations() {
+    const data = await getConversations();
+    setConversations(data);
+  }
+
+  async function handleClear() {
+    const ok = confirm("Deseja apagar todo o histórico de conversas?");
+
+    if (!ok) return;
+
+    await clearConversations();
+    setConversations([]);
+  }
+
+  useEffect(() => {
+    loadConversations();
+  }, []);
 
   return (
     <div>
@@ -10,32 +29,38 @@ export default function Conversas() {
           <h1>Histórico de conversas</h1>
           <p>Veja suas aulas anteriores e correções.</p>
         </div>
+
+        <button className="danger-button" onClick={handleClear}>
+          Apagar histórico
+        </button>
       </div>
 
       <section className="section">
-        {progress.conversations.length === 0 && (
-          <p>Nenhuma conversa salva ainda. Inicie uma aula com o Professor IA.</p>
-        )}
+        {conversations.length === 0 ? (
+          <p>Nenhuma conversa salva ainda.</p>
+        ) : (
+          conversations.map((item) => (
+            <div className="conversation-card" key={item.id}>
+              <div className="conversation-header">
+                <div>
+                  <h2>{item.title}</h2>
+                  <p>{new Date(item.createdAt).toLocaleDateString("pt-BR")}</p>
+                </div>
 
-        {progress.conversations.map((conversa) => (
-          <div className="conversation-card" key={conversa.id}>
-            <div className="conversation-header">
-              <div>
-                <h2>{conversa.tema}</h2>
-                <p>{conversa.data}</p>
+                <span className="score-badge">{item.score}%</span>
               </div>
 
-              <strong className="score">{conversa.nota}%</strong>
-            </div>
+              <p>{item.summary}</p>
 
-            <p>{conversa.resumo}</p>
-
-            <div className="correction-box">
-              <strong>Correção:</strong>
-              <p>{conversa.erro}</p>
+              {item.correction && (
+                <div className="correction-note">
+                  <strong>Correção:</strong>
+                  <p>{item.correction}</p>
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          ))
+        )}
       </section>
     </div>
   );

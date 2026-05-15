@@ -1,36 +1,42 @@
-import { useRef, useState } from "react";
-import { Mic, Square, Send, RefreshCw } from "lucide-react";
-import { dailyTasks, levels } from "../data/mock";
+import { useEffect, useState } from "react";
+import { Send, RefreshCw, BookOpen } from "lucide-react";
+import { levels } from "../data/mock";
 import { correctEnglishAnswer } from "../services/aiCorrection";
-import { completeTask, getProgress } from "../services/progress";
+import { getTasks, getTaskReviews, saveTaskReview } from "../services/appData";
 
 export default function TarefasDiarias() {
   const [level, setLevel] = useState("Iniciante");
+  const [tasks, setTasks] = useState([]);
   const [answers, setAnswers] = useState({});
   const [results, setResults] = useState({});
-  const [progress, setProgress] = useState(getProgress());
+  const [reviews, setReviews] = useState([]);
   const [loadingTask, setLoadingTask] = useState(null);
-  const [taskVersion, setTaskVersion] = useState(0);
-  const [recordingTaskId, setRecordingTaskId] = useState(null);
-  const [recordingStatus, setRecordingStatus] = useState("");
 
-  const recognitionRef = useRef(null);
+  async function loadData() {
+    try {
+      const taskData = await getTasks();
+      const reviewData = await getTaskReviews();
 
-  const tasks = dailyTasks
-    .filter((task) => task.level === level)
-    .slice(taskVersion, taskVersion + 3);
-
-  function updateTasks() {
-    const levelTasks = dailyTasks.filter((task) => task.level === level);
-    const next = taskVersion + 1 >= levelTasks.length ? 0 : taskVersion + 1;
-    setTaskVersion(next);
+      setTasks(taskData);
+      setReviews(reviewData);
+    } catch (error) {
+      console.error(error);
+      alert("Erro ao carregar tarefas.");
+    }
   }
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const filteredTasks = tasks.filter((task) => task.level === level);
+  const filteredReviews = reviews.filter((item) => item.level === level);
 
   async function handleSubmit(task) {
     const answer = answers[task.id];
 
     if (!answer || answer.trim().length < 2) {
-      alert("Digite ou grave uma resposta primeiro.");
+      alert("Digite sua resposta em inglês primeiro.");
       return;
     }
 
@@ -48,106 +54,24 @@ export default function TarefasDiarias() {
         [task.id]: correction,
       }));
 
-      const updated = completeTask(task.id, task.xp);
-      setProgress(updated);
+      await saveTaskReview(task.id, {
+        taskTitle: task.title,
+        level: task.level,
+        question: task.instruction,
+        studentAnswer: answer,
+        score: correction.score,
+        correctionPt: correction.correctionPt,
+        betterSentence: correction.betterSentence,
+        explanation: correction.explanation,
+        xp: task.xp,
+      });
+
+      await loadData();
     } catch (error) {
       console.error(error);
-      alert("Erro ao corrigir com a IA.");
+      alert("Erro ao corrigir e salvar tarefa.");
     } finally {
       setLoadingTask(null);
-    }
-  }
-
-  function startRecording(taskId) {
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      alert("Use o Google Chrome para usar reconhecimento de voz.");
-      return;
-    }
-
-    try {
-      recognitionRef.current?.stop();
-
-      const recognition = new SpeechRecognition();
-
-      recognition.lang = "en-US";
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.maxAlternatives = 1;
-
-      let finalTranscript = "";
-
-      recognition.onstart = () => {
-        setRecordingTaskId(taskId);
-        setRecordingStatus("🎤 Gravando... fale em inglês.");
-      };
-
-      recognition.onresult = (event) => {
-        let interimTranscript = "";
-
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript + " ";
-          } else {
-            interimTranscript += transcript;
-          }
-        }
-
-        const fullText = (finalTranscript + interimTranscript).trim();
-
-        setAnswers((prev) => ({
-          ...prev,
-          [taskId]: fullText,
-        }));
-      };
-
-      recognition.onerror = (event) => {
-        console.error("Erro no reconhecimento de voz:", event.error);
-
-        if (event.error === "network") {
-          setRecordingStatus(
-            "⚠️ Erro de rede no reconhecimento de voz. Tente novamente no Google Chrome."
-          );
-        } else if (event.error === "not-allowed") {
-          setRecordingStatus("⚠️ Permissão do microfone negada.");
-        } else if (event.error === "no-speech") {
-          setRecordingStatus("⚠️ Nenhuma fala detectada. Tente novamente.");
-        } else {
-          setRecordingStatus("⚠️ Erro ao gravar áudio. Tente novamente.");
-        }
-
-        setRecordingTaskId(null);
-      };
-
-      recognition.onend = () => {
-        setRecordingTaskId(null);
-
-        setRecordingStatus(
-          "✅ Gravação finalizada. Agora clique em enviar para IA corrigir."
-        );
-      };
-
-      recognitionRef.current = recognition;
-      recognition.start();
-    } catch (error) {
-      console.error(error);
-      setRecordingStatus("⚠️ Não foi possível iniciar a gravação.");
-    }
-  }
-
-  function stopRecording() {
-    try {
-      recognitionRef.current?.stop();
-      setRecordingTaskId(null);
-      setRecordingStatus(
-        "✅ Gravação finalizada. Agora clique em enviar para IA corrigir."
-      );
-    } catch (error) {
-      console.error(error);
     }
   }
 
@@ -156,10 +80,10 @@ export default function TarefasDiarias() {
       <div className="page-header">
         <div>
           <h1>Tarefas diárias</h1>
-          <p>Escreva ou grave sua resposta em inglês e receba correção da IA.</p>
+          <p>As respostas e revisões ficam salvas para cada usuário.</p>
         </div>
 
-        <button className="secondary-button" onClick={updateTasks}>
+        <button className="secondary-button" onClick={loadData}>
           <RefreshCw size={18} />
           Atualizar tarefas
         </button>
@@ -170,35 +94,22 @@ export default function TarefasDiarias() {
           <button
             key={item}
             className={level === item ? "tab active-tab" : "tab"}
-            onClick={() => {
-              setLevel(item);
-              setTaskVersion(0);
-              stopRecording();
-            }}
+            onClick={() => setLevel(item)}
           >
             {item}
           </button>
         ))}
       </div>
 
-      {recordingStatus && (
-        <div className="recording-status">{recordingStatus}</div>
-      )}
-
       <section className="section">
-        {tasks.map((task) => {
-          const done = progress.completedTasks.includes(task.id);
+        {filteredTasks.map((task) => {
           const result = results[task.id];
-          const isRecording = recordingTaskId === task.id;
 
           return (
             <div className="task-card" key={task.id}>
               <div className="task-header">
                 <div>
-                  <span className={task.type === "audio" ? "badge warning" : "badge"}>
-                    {task.type === "audio" ? "Áudio" : "Texto"}
-                  </span>
-
+                  <span className="badge">Texto</span>
                   <h2>{task.title}</h2>
                   <p>{task.instruction}</p>
                 </div>
@@ -206,43 +117,17 @@ export default function TarefasDiarias() {
                 <strong>+{task.xp} XP</strong>
               </div>
 
-              {task.type === "text" ? (
-                <textarea
-                  className="answer-input"
-                  placeholder="Escreva sua resposta em inglês..."
-                  value={answers[task.id] || ""}
-                  onChange={(e) =>
-                    setAnswers({
-                      ...answers,
-                      [task.id]: e.target.value,
-                    })
-                  }
-                />
-              ) : (
-                <div>
-                  <div className="button-row left">
-                    {!isRecording ? (
-                      <button
-                        className="primary-button"
-                        onClick={() => startRecording(task.id)}
-                      >
-                        <Mic size={18} />
-                        Iniciar gravação
-                      </button>
-                    ) : (
-                      <button className="danger-button" onClick={stopRecording}>
-                        <Square size={18} />
-                        Parar gravação
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="transcript-box">
-                    <strong>Transcrição do áudio:</strong>
-                    <p>{answers[task.id] || "Nenhum áudio gravado ainda."}</p>
-                  </div>
-                </div>
-              )}
+              <textarea
+                className="answer-input"
+                placeholder="Escreva sua resposta em inglês..."
+                value={answers[task.id] || ""}
+                onChange={(e) =>
+                  setAnswers({
+                    ...answers,
+                    [task.id]: e.target.value,
+                  })
+                }
+              />
 
               <button
                 className="primary-button"
@@ -252,12 +137,12 @@ export default function TarefasDiarias() {
                 <Send size={18} />
                 {loadingTask === task.id
                   ? "Corrigindo..."
-                  : done
+                  : task.completed
                   ? "Enviar novamente para IA"
                   : "Enviar para IA"}
               </button>
 
-              {done && (
+              {task.completed && (
                 <span className="badge success" style={{ marginLeft: 12 }}>
                   Já concluída
                 </span>
@@ -272,13 +157,11 @@ export default function TarefasDiarias() {
                   </p>
 
                   <p>
-                    <strong>Correção em português:</strong>{" "}
-                    {result.correctionPt}
+                    <strong>Correção:</strong> {result.correctionPt}
                   </p>
 
                   <p>
-                    <strong>Como falar em inglês:</strong>{" "}
-                    {result.betterSentence}
+                    <strong>Forma correta:</strong> {result.betterSentence}
                   </p>
 
                   <p>
@@ -289,6 +172,61 @@ export default function TarefasDiarias() {
             </div>
           );
         })}
+      </section>
+
+      <section className="section">
+        <div className="review-title">
+          <BookOpen size={24} />
+
+          <div>
+            <h2>Revisão do aluno</h2>
+            <p>Aqui aparecem somente as respostas salvas deste usuário.</p>
+          </div>
+        </div>
+
+        {filteredReviews.length === 0 ? (
+          <p>Nenhuma revisão salva ainda.</p>
+        ) : (
+          <div className="review-list">
+            {filteredReviews.map((item) => (
+              <div className="review-card" key={item.id}>
+                <div className="review-card-header">
+                  <div>
+                    <span className="badge">{item.level}</span>
+                    <h3>{item.taskTitle}</h3>
+                    <small>
+                      {new Date(item.createdAt).toLocaleDateString("pt-BR")}
+                    </small>
+                  </div>
+
+                  <strong className="score">{item.score}/100</strong>
+                </div>
+
+                <div className="review-content">
+                  <p>
+                    <strong>Questão:</strong> {item.question}
+                  </p>
+
+                  <p>
+                    <strong>Sua resposta:</strong> {item.studentAnswer}
+                  </p>
+
+                  <p>
+                    <strong>Correção:</strong> {item.correctionPt}
+                  </p>
+
+                  <p>
+                    <strong>Forma correta:</strong> {item.betterSentence}
+                  </p>
+
+                  <p>
+                    <strong>Explicação:</strong> {item.explanation}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );

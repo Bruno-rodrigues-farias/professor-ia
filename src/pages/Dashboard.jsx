@@ -1,230 +1,120 @@
 import { useEffect, useState } from "react";
+import { Zap, Flame, Star, Trophy, BookOpen, Languages } from "lucide-react";
+import { getProfile, getTasks } from "../services/appData";
 
-import {
-  Flame,
-  Star,
-  Trophy,
-  BookOpen,
-  Languages,
-  Zap,
-} from "lucide-react";
+export default function Dashboard({ setPage }) {
+  const [profile, setProfile] = useState(null);
+  const [tasks, setTasks] = useState([]);
 
-import StatCard from "../components/StatCard";
+  async function loadData() {
+    const profileData = await getProfile();
+    const tasksData = await getTasks();
 
-import { dailyTasks } from "../data/mock";
-
-import {
-  getLevel,
-  getProgress,
-  getRank,
-} from "../services/progress";
-
-export default function Dashboard() {
-  const [progress, setProgress] = useState(getProgress());
+    setProfile(profileData);
+    setTasks(tasksData.slice(0, 3));
+  }
 
   useEffect(() => {
-    setProgress(getProgress());
+    loadData();
   }, []);
 
-  const level = getLevel(progress.xp);
+  if (!profile) return <p>Carregando dashboard...</p>;
 
-  const rank = getRank(progress.xp);
-
-  const nextLevelXp = 2000;
-
-  const percent = Math.min(
-    (progress.xp / nextLevelXp) * 100,
-    100
-  );
-
-  const tarefas = dailyTasks.slice(0, 3);
+  const progressPercent = Math.min((profile.xp / 2000) * 100, 100);
 
   return (
     <div>
       <div className="page-header">
         <div>
-          <h1>Olá, {progress.nome} 👋</h1>
-
-          <p>
-            Continue sua jornada para falar inglês
-            com confiança.
-          </p>
+          <h1>Olá, {profile.name} 👋</h1>
+          <p>Continue sua jornada para falar inglês com confiança.</p>
         </div>
 
-        <button className="primary-button">
+        <button className="primary-button" onClick={() => setPage?.("aulas")}>
           Continuar estudando
         </button>
       </div>
 
-      {/* =========================
-          CARDS
-      ========================= */}
-
       <div className="stats-grid">
-        <StatCard
-          title="XP Total"
-          value={progress.xp}
-          icon={<Zap />}
-          color="#22c55e"
-        />
+        <div className="stat-card">
+          <Zap />
+          <div>
+            <span>XP Total</span>
+            <strong>{profile.xp}</strong>
+          </div>
+        </div>
 
-        <StatCard
-          title="Streak"
-          value={`${progress.streak} dias`}
-          icon={<Flame />}
-          color="#f97316"
-        />
+        <div className="stat-card">
+          <Flame />
+          <div>
+            <span>Streak</span>
+            <strong>{profile.streak} dias</strong>
+          </div>
+        </div>
 
-        <StatCard
-          title="Nível"
-          value={level}
-          icon={<Star />}
-          color="#8b5cf6"
-        />
+        <div className="stat-card">
+          <Star />
+          <div>
+            <span>Nível</span>
+            <strong>{profile.level}</strong>
+          </div>
+        </div>
 
-        <StatCard
-          title="Rank"
-          value={rank}
-          icon={<Trophy />}
-          color="#3b82f6"
-        />
+        <div className="stat-card">
+          <Trophy />
+          <div>
+            <span>Rank</span>
+            <strong>{profile.rank}</strong>
+          </div>
+        </div>
 
-        <StatCard
-          title="Aulas"
-          value={progress.aulasConcluidas}
-          icon={<BookOpen />}
-          color="#06b6d4"
-        />
+        <div className="stat-card">
+          <BookOpen />
+          <div>
+            <span>Aulas</span>
+            <strong>{profile.completedLessons.length}</strong>
+          </div>
+        </div>
 
-        <StatCard
-          title="Palavras"
-          value={progress.palavrasAprendidas}
-          icon={<Languages />}
-          color="#ec4899"
-        />
+        <div className="stat-card">
+          <Languages />
+          <div>
+            <span>Conversas</span>
+            <strong>{profile.conversationsCount}</strong>
+          </div>
+        </div>
       </div>
-
-      {/* =========================
-          PROGRESSO
-      ========================= */}
 
       <section className="section">
         <h2>Progresso do nível</h2>
 
-        <div className="progress-box">
-          <div className="progress-info">
-            <span>{level}</span>
+        <div className="progress-header">
+          <strong>{profile.level}</strong>
+          <strong>{profile.xp} / 2000 XP</strong>
+        </div>
 
-            <span>
-              {progress.xp} / {nextLevelXp} XP
-            </span>
-          </div>
-
-          <div className="progress-bar">
-            <div
-              className="progress-fill"
-              style={{
-                width: `${percent}%`,
-              }}
-            ></div>
-          </div>
+        <div className="progress-bar">
+          <div style={{ width: `${progressPercent}%` }} />
         </div>
       </section>
-
-      {/* =========================
-          TAREFAS
-      ========================= */}
 
       <section className="section">
         <h2>Tarefas de hoje</h2>
 
-        {tarefas.map((tarefa) => {
-          const done =
-            progress.completedTasks.includes(
-              tarefa.id
-            );
-
-          return (
-            <div
-              className="list-card"
-              key={tarefa.id}
-            >
+        <div className="task-list-simple">
+          {tasks.map((task) => (
+            <div className="simple-row" key={task.id}>
               <div>
-                <h3>{tarefa.title}</h3>
-
-                <p>
-                  +{tarefa.xp} XP •{" "}
-                  {tarefa.level}
-                </p>
+                <h3>{task.title}</h3>
+                <p>+{task.xp} XP • {task.level}</p>
               </div>
 
-              <span
-                className={
-                  done
-                    ? "badge success"
-                    : "badge"
-                }
-              >
-                {done
-                  ? "Concluída"
-                  : "Pendente"}
+              <span className={task.completed ? "badge success" : "badge"}>
+                {task.completed ? "Concluída" : "Pendente"}
               </span>
             </div>
-          );
-        })}
-      </section>
-
-      {/* =========================
-          CONVERSAS
-      ========================= */}
-
-      <section className="section">
-        <h2>Últimas conversas</h2>
-
-        {progress.conversations.length === 0 ? (
-          <p>
-            Nenhuma conversa salva ainda.
-          </p>
-        ) : (
-          progress.conversations
-            .slice(0, 3)
-            .map((conversa) => (
-              <div
-                className="conversation-card"
-                key={conversa.id}
-              >
-                <div className="conversation-header">
-                  <div>
-                    <h3>
-                      {conversa.tema}
-                    </h3>
-
-                    <p>
-                      {conversa.data}
-                    </p>
-                  </div>
-
-                  <strong className="score">
-                    {conversa.nota}%
-                  </strong>
-                </div>
-
-                <p>
-                  {conversa.resumo}
-                </p>
-
-                <div className="correction-box">
-                  <strong>
-                    Correção:
-                  </strong>
-
-                  <p>
-                    {conversa.erro}
-                  </p>
-                </div>
-              </div>
-            ))
-        )}
+          ))}
+        </div>
       </section>
     </div>
   );

@@ -1,66 +1,98 @@
-import { achievements } from "../data/mock";
-import { getLevel, getProgress, getRank } from "../services/progress";
+import { useEffect, useState } from "react";
+import { apiFetch, logout } from "../services/api";
 
 export default function Perfil() {
-  const progress = getProgress();
+  const [profile, setProfile] = useState(null);
+
+  async function loadProfile() {
+    const data = await apiFetch("/api/me");
+    setProfile(data);
+  }
+
+  async function clearHistory() {
+    const confirm = window.confirm("Deseja apagar todo o histórico de conversas?");
+
+    if (!confirm) return;
+
+    await apiFetch("/api/conversations", {
+      method: "DELETE",
+    });
+
+    await loadProfile();
+  }
+
+  useEffect(() => {
+    loadProfile();
+  }, []);
+
+  if (!profile) {
+    return <p>Carregando perfil...</p>;
+  }
 
   return (
     <div>
       <div className="page-header">
         <div>
           <h1>Perfil</h1>
-          <p>Suas informações e progresso.</p>
+          <p>Informações da sua conta e progresso.</p>
         </div>
+
+        <button className="danger-button" onClick={logout}>
+          Sair
+        </button>
       </div>
 
       <section className="profile-card">
-        <div className="profile-avatar">{progress.nome[0]}</div>
+        <div className="profile-avatar">{profile.name[0]}</div>
 
-        <h2>{progress.nome}</h2>
-        <p>Aluno de inglês</p>
+        <h2>{profile.name}</h2>
+        <p>{profile.email}</p>
 
         <div className="profile-grid">
           <div>
-            <span>Nível</span>
-            <strong>{getLevel(progress.xp)}</strong>
-          </div>
-
-          <div>
-            <span>Rank</span>
-            <strong>{getRank(progress.xp)}</strong>
-          </div>
-
-          <div>
             <span>XP</span>
-            <strong>{progress.xp}</strong>
+            <strong>{profile.xp}</strong>
           </div>
 
           <div>
             <span>Streak</span>
-            <strong>{progress.streak} dias</strong>
+            <strong>{profile.streak}</strong>
+          </div>
+
+          <div>
+            <span>Nível</span>
+            <strong>{profile.level}</strong>
+          </div>
+
+          <div>
+            <span>Rank</span>
+            <strong>{profile.rank}</strong>
+          </div>
+
+          <div>
+            <span>Tarefas concluídas</span>
+            <strong>{profile.completedTasks.length}</strong>
+          </div>
+
+          <div>
+            <span>Aulas concluídas</span>
+            <strong>{profile.completedLessons.length}</strong>
+          </div>
+
+          <div>
+            <span>Conversas salvas</span>
+            <strong>{profile.conversationsCount}</strong>
           </div>
         </div>
       </section>
 
       <section className="section">
-        <h2>Conquistas</h2>
+        <h2>Privacidade</h2>
+        <p>Você pode apagar o histórico de conversas sem apagar sua conta.</p>
 
-        {achievements.map((item) => {
-          const unlocked = progress.achievements.includes(item.id);
-
-          return (
-            <div className="list-card" key={item.id}>
-              <div>
-                <h3>{item.titulo}</h3>
-                <p>{item.descricao}</p>
-              </div>
-
-              <span className={unlocked ? "badge success" : "badge"}>
-                {unlocked ? "Desbloqueada" : "Bloqueada"}
-              </span>
-            </div>
-          );
-        })}
+        <button className="danger-button" onClick={clearHistory}>
+          Apagar histórico de conversas
+        </button>
       </section>
     </div>
   );

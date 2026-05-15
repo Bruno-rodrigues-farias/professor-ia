@@ -1,3 +1,5 @@
+import Login from "./pages/Login";
+import { getToken } from "./services/api";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 
@@ -11,6 +13,9 @@ import Ranking from "./pages/Ranking";
 import Perfil from "./pages/Perfil";
 
 export default function App() {
+  if (!getToken()) {
+  return <Login />;
+}
   return (
     <BrowserRouter>
       <div className="app">
