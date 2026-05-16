@@ -12,6 +12,7 @@ dotenv.config();
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
+const DB_FILE = "./db.json";
 
 app.use(
   cors({
@@ -23,9 +24,12 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json());
 
-const DB_FILE = "./db.json";
+app.use(express.json({ limit: "50mb" }));
+
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+});
 
 function loadDb() {
   if (!fs.existsSync(DB_FILE)) {
@@ -34,8 +38,8 @@ function loadDb() {
       JSON.stringify(
         {
           users: [],
-          tasks: [],
           conversations: [],
+          taskReviews: [],
         },
         null,
         2
@@ -43,11 +47,46 @@ function loadDb() {
     );
   }
 
-  return JSON.parse(fs.readFileSync(DB_FILE, "utf-8"));
+  const db = JSON.parse(fs.readFileSync(DB_FILE, "utf-8"));
+
+  db.users ||= [];
+  db.conversations ||= [];
+  db.taskReviews ||= [];
+
+  return db;
 }
 
 function saveDb(db) {
   fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+}
+
+function normalizeUser(user) {
+  user.xp = Number(user.xp || 0);
+  user.streak = Number(user.streak || 0);
+  user.level ||= "Iniciante";
+  user.rank ||= "Bronze";
+  user.completedTasks = Array.isArray(user.completedTasks)
+    ? user.completedTasks
+    : [];
+  user.completedLessons = Array.isArray(user.completedLessons)
+    ? user.completedLessons
+    : [];
+
+  return user;
+}
+
+function publicUser(user) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    xp: user.xp,
+    streak: user.streak,
+    level: user.level,
+    rank: user.rank,
+    completedTasks: user.completedTasks,
+    completedLessons: user.completedLessons,
+  };
 }
 
 function createToken(user) {
@@ -79,188 +118,350 @@ function auth(req, res, next) {
   }
 }
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
+app.get("/", (req, res) => {
+  res.json({
+    message: "English Mentor AI API online",
+  });
 });
 
 /* AUTH */
 
 app.post("/api/auth/register", async (req, res) => {
-  const { name, email, password } = req.body;
+  try {
+    const { name, email, password } = req.body;
 
-  const db = loadDb();
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        error: "Nome, e-mail e senha são obrigatórios.",
+      });
+    }
 
-  const exists = db.users.find((user) => user.email === email);
+    const db = loadDb();
 
-  if (exists) {
-    return res.status(400).json({ error: "E-mail já cadastrado." });
+    const exists = db.users.find((user) => user.email === email);
+
+    if (exists) {
+      return res.status(400).json({
+        error: "E-mail já cadastrado.",
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const user = normalizeUser({
+      id: uuid(),
+      name,
+      email,
+      passwordHash,
+      xp: 0,
+      streak: 0,
+      level: "Iniciante",
+      rank: "Bronze",
+      completedTasks: [],
+      completedLessons: [],
+      createdAt: new Date().toISOString(),
+    });
+
+    db.users.push(user);
+    saveDb(db);
+
+    const token = createToken(user);
+
+    return res.json({
+      token,
+      user: publicUser(user),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: "Erro ao cadastrar usuário.",
+      details: error.message,
+    });
   }
-
-  const passwordHash = await bcrypt.hash(password, 10);
-
-  const user = {
-    id: uuid(),
-    name,
-    email,
-    passwordHash,
-    xp: 0,
-    streak: 0,
-    level: "Iniciante",
-    rank: "Bronze",
-    completedTasks: [],
-    completedLessons: [],
-    createdAt: new Date().toISOString(),
-  };
-
-  db.users.push(user);
-  saveDb(db);
-
-  const token = createToken(user);
-
-  return res.json({
-    token,
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      xp: user.xp,
-      streak: user.streak,
-      level: user.level,
-      rank: user.rank,
-    },
-  });
 });
 
 app.post("/api/auth/login", async (req, res) => {
-  const { email, password } = req.body;
+  try {
+    const { email, password } = req.body;
 
-  const db = loadDb();
+    const db = loadDb();
 
-  const user = db.users.find((item) => item.email === email);
+    const user = db.users.find((item) => item.email === email);
 
-  if (!user) {
-    return res.status(400).json({ error: "Usuário não encontrado." });
+    if (!user) {
+      return res.status(400).json({
+        error: "Usuário não encontrado.",
+      });
+    }
+
+    normalizeUser(user);
+
+    const valid = await bcrypt.compare(password, user.passwordHash);
+
+    if (!valid) {
+      return res.status(400).json({
+        error: "Senha incorreta.",
+      });
+    }
+
+    saveDb(db);
+
+    const token = createToken(user);
+
+    return res.json({
+      token,
+      user: publicUser(user),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: "Erro ao fazer login.",
+      details: error.message,
+    });
   }
-
-  const valid = await bcrypt.compare(password, user.passwordHash);
-
-  if (!valid) {
-    return res.status(400).json({ error: "Senha incorreta." });
-  }
-
-  const token = createToken(user);
-
-  return res.json({
-    token,
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      xp: user.xp,
-      streak: user.streak,
-      level: user.level,
-      rank: user.rank,
-    },
-  });
 });
 
 /* PERFIL */
 
 app.get("/api/me", auth, (req, res) => {
-  const db = loadDb();
+  try {
+    const db = loadDb();
 
-  const user = db.users.find((item) => item.id === req.user.id);
+    const user = db.users.find((item) => item.id === req.user.id);
 
-  if (!user) {
-    return res.status(404).json({ error: "Usuário não encontrado." });
+    if (!user) {
+      return res.status(404).json({
+        error: "Usuário não encontrado.",
+      });
+    }
+
+    normalizeUser(user);
+
+    const conversations = db.conversations.filter(
+      (item) => item.userId === user.id
+    );
+
+    saveDb(db);
+
+    return res.json({
+      ...publicUser(user),
+      conversationsCount: conversations.length,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: "Erro ao buscar perfil.",
+      details: error.message,
+    });
   }
-
-  const conversations = db.conversations.filter(
-    (item) => item.userId === user.id
-  );
-
-  return res.json({
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    xp: user.xp,
-    streak: user.streak,
-    level: user.level,
-    rank: user.rank,
-    completedTasks: user.completedTasks,
-    completedLessons: user.completedLessons,
-    conversationsCount: conversations.length,
-  });
 });
 
 /* TAREFAS */
+
+const defaultTasks = [
+  {
+    id: 1,
+    level: "Iniciante",
+    title: "Escreva uma apresentação",
+    instruction:
+      "Escreva em inglês: Meu nome é [seu nome] e eu quero aprender inglês.",
+    xp: 30,
+  },
+  {
+    id: 2,
+    level: "Iniciante",
+    title: "Minha rotina",
+    instruction: "Escreva em inglês uma frase sobre sua rotina matinal.",
+    xp: 30,
+  },
+  {
+    id: 3,
+    level: "Básico",
+    title: "Rotina diária",
+    instruction: "Escreva uma frase usando: I usually...",
+    xp: 40,
+  },
+  {
+    id: 4,
+    level: "Avançado",
+    title: "Entrevista",
+    instruction:
+      "Responda em inglês: Tell me about your professional experience.",
+    xp: 60,
+  },
+];
 
 app.get("/api/tasks", auth, (req, res) => {
   const db = loadDb();
 
   const user = db.users.find((item) => item.id === req.user.id);
 
-  const tasks = [
-    {
-      id: 1,
-      level: "Iniciante",
-      title: "Escreva uma apresentação",
-      instruction:
-        "Escreva em inglês: Meu nome é [seu nome] e eu quero aprender inglês.",
-      xp: 30,
-    },
-    {
-      id: 2,
-      level: "Iniciante",
-      title: "Minha rotina",
-      instruction: "Escreva uma frase em inglês sobre sua rotina.",
-      xp: 30,
-    },
-    {
-      id: 3,
-      level: "Básico",
-      title: "Rotina diária",
-      instruction: "Escreva uma frase usando: I usually...",
-      xp: 40,
-    },
-    {
-      id: 4,
-      level: "Avançado",
-      title: "Entrevista",
-      instruction:
-        "Responda em inglês: Tell me about your professional experience.",
-      xp: 60,
-    },
-  ];
+  if (!user) {
+    return res.status(404).json({
+      error: "Usuário não encontrado.",
+    });
+  }
 
-  const formatted = tasks.map((task) => ({
+  normalizeUser(user);
+  saveDb(db);
+
+  const tasks = defaultTasks.map((task) => ({
     ...task,
     completed: user.completedTasks.includes(task.id),
   }));
 
-  res.json(formatted);
+  return res.json(tasks);
 });
 
 app.post("/api/tasks/:id/complete", auth, (req, res) => {
+  try {
+    const db = loadDb();
+
+    const user = db.users.find((item) => item.id === req.user.id);
+
+    if (!user) {
+      return res.status(404).json({
+        error: "Usuário não encontrado.",
+      });
+    }
+
+    normalizeUser(user);
+
+    const taskId = Number(req.params.id);
+    const xp = Number(req.body?.xp || 30);
+
+    if (!user.completedTasks.includes(taskId)) {
+      user.completedTasks.push(taskId);
+      user.xp += xp;
+      user.streak += 1;
+    }
+
+    saveDb(db);
+
+    return res.json({
+      message: "Tarefa concluída.",
+      xp: user.xp,
+      streak: user.streak,
+      completedTasks: user.completedTasks,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: "Erro ao concluir tarefa.",
+      details: error.message,
+    });
+  }
+});
+
+app.post("/api/tasks/:id/review", auth, (req, res) => {
+  try {
+    const db = loadDb();
+
+    const user = db.users.find((item) => item.id === req.user.id);
+
+    if (!user) {
+      return res.status(404).json({
+        error: "Usuário não encontrado.",
+      });
+    }
+
+    normalizeUser(user);
+
+    const taskId = Number(req.params.id);
+
+    const review = {
+      id: uuid(),
+      userId: user.id,
+      taskId,
+      taskTitle: req.body.taskTitle,
+      level: req.body.level,
+      question: req.body.question,
+      studentAnswer: req.body.studentAnswer,
+      score: req.body.score,
+      correctionPt: req.body.correctionPt,
+      betterSentence: req.body.betterSentence,
+      explanation: req.body.explanation,
+      createdAt: new Date().toISOString(),
+    };
+
+    db.taskReviews.push(review);
+
+    if (!user.completedTasks.includes(taskId)) {
+      user.completedTasks.push(taskId);
+      user.xp += Number(req.body.xp || 30);
+      user.streak += 1;
+    }
+
+    saveDb(db);
+
+    return res.json({
+      review,
+      xp: user.xp,
+      streak: user.streak,
+      completedTasks: user.completedTasks,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: "Erro ao salvar revisão.",
+      details: error.message,
+    });
+  }
+});
+
+app.get("/api/tasks/reviews", auth, (req, res) => {
   const db = loadDb();
 
-  const user = db.users.find((item) => item.id === req.user.id);
-  const taskId = Number(req.params.id);
-  const { xp = 30 } = req.body;
+  db.taskReviews ||= [];
 
-  if (!user.completedTasks.includes(taskId)) {
-    user.completedTasks.push(taskId);
-    user.xp += xp;
-    user.streak += 1;
+  const reviews = db.taskReviews
+    .filter((item) => item.userId === req.user.id)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  return res.json(reviews);
+});
+
+/* AULAS */
+
+app.post("/api/lessons/:id/complete", auth, (req, res) => {
+  try {
+    const db = loadDb();
+
+    const user = db.users.find((item) => item.id === req.user.id);
+
+    if (!user) {
+      return res.status(404).json({
+        error: "Usuário não encontrado.",
+      });
+    }
+
+    normalizeUser(user);
+
+    const lessonId = Number(req.params.id);
+    const xp = Number(req.body?.xp || 80);
+
+    const alreadyCompleted = user.completedLessons.includes(lessonId);
+
+    if (!alreadyCompleted) {
+      user.completedLessons.push(lessonId);
+      user.xp += xp;
+      user.streak += 1;
+    }
+
+    saveDb(db);
+
+    return res.json({
+      message: alreadyCompleted ? "Aula já concluída." : "Aula concluída.",
+      xp: user.xp,
+      streak: user.streak,
+      completedLessons: user.completedLessons,
+      completedTasks: user.completedTasks,
+      level: user.level,
+      rank: user.rank,
+    });
+  } catch (error) {
+    console.error("Erro ao concluir aula:", error);
+
+    return res.status(500).json({
+      error: "Erro ao concluir aula.",
+      details: error.message,
+    });
   }
-
-  saveDb(db);
-
-  res.json({
-    message: "Tarefa salva.",
-    xp: user.xp,
-    completedTasks: user.completedTasks,
-  });
 });
 
 /* CONVERSAS */
@@ -268,11 +469,11 @@ app.post("/api/tasks/:id/complete", auth, (req, res) => {
 app.get("/api/conversations", auth, (req, res) => {
   const db = loadDb();
 
-  const conversations = db.conversations.filter(
-    (item) => item.userId === req.user.id
-  );
+  const conversations = db.conversations
+    .filter((item) => item.userId === req.user.id)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-  res.json(conversations.reverse());
+  return res.json(conversations);
 });
 
 app.post("/api/conversations", auth, (req, res) => {
@@ -291,7 +492,7 @@ app.post("/api/conversations", auth, (req, res) => {
   db.conversations.push(conversation);
   saveDb(db);
 
-  res.json(conversation);
+  return res.json(conversation);
 });
 
 app.delete("/api/conversations", auth, (req, res) => {
@@ -303,13 +504,18 @@ app.delete("/api/conversations", auth, (req, res) => {
 
   saveDb(db);
 
-  res.json({ message: "Histórico apagado." });
+  return res.json({
+    message: "Histórico apagado.",
+  });
 });
 
 /* RANKING */
 
 app.get("/api/ranking", auth, (req, res) => {
   const db = loadDb();
+
+  db.users.forEach(normalizeUser);
+  saveDb(db);
 
   const ranking = db.users
     .map((user) => ({
@@ -321,7 +527,7 @@ app.get("/api/ranking", auth, (req, res) => {
     }))
     .sort((a, b) => b.xp - a.xp);
 
-  res.json(ranking);
+  return res.json(ranking);
 });
 
 /* ÁUDIO */
@@ -331,7 +537,9 @@ app.post("/api/audio/corrigir", auth, upload.single("audio"), async (req, res) =
     const { expected = "", level = "Iniciante" } = req.body;
 
     if (!req.file) {
-      return res.status(400).json({ error: "Nenhum áudio enviado." });
+      return res.status(400).json({
+        error: "Nenhum áudio enviado.",
+      });
     }
 
     const audioBase64 = req.file.buffer.toString("base64");
@@ -386,7 +594,7 @@ Responda somente JSON válido:
 
     return res.json(JSON.parse(clean));
   } catch (error) {
-    console.error(error);
+    console.error("Erro ao corrigir áudio:", error);
 
     return res.status(500).json({
       error: "Erro ao corrigir áudio.",
@@ -394,153 +602,6 @@ Responda somente JSON válido:
     });
   }
 });
-
-app.post("/api/lessons/:id/complete", auth, (req, res) => {
-  try {
-    const db = loadDb();
-
-    const user = db.users.find((item) => item.id === req.user.id);
-
-    if (!user) {
-      return res.status(404).json({ error: "Usuário não encontrado." });
-    }
-
-    const lessonId = Number(req.params.id);
-    const xpReceived = Number(req.body?.xp || 80);
-
-    if (!Array.isArray(user.completedLessons)) {
-      user.completedLessons = [];
-    }
-
-    if (!Array.isArray(user.completedTasks)) {
-      user.completedTasks = [];
-    }
-
-    if (typeof user.xp !== "number") {
-      user.xp = Number(user.xp || 0);
-    }
-
-    if (typeof user.streak !== "number") {
-      user.streak = Number(user.streak || 0);
-    }
-
-    if (!user.level) {
-      user.level = "Iniciante";
-    }
-
-    if (!user.rank) {
-      user.rank = "Bronze";
-    }
-
-    const alreadyCompleted = user.completedLessons.includes(lessonId);
-
-    if (!alreadyCompleted) {
-      user.completedLessons.push(lessonId);
-      user.xp += xpReceived;
-      user.streak += 1;
-    }
-
-    saveDb(db);
-
-    return res.json({
-      message: alreadyCompleted ? "Aula já concluída." : "Aula concluída.",
-      xp: user.xp,
-      streak: user.streak,
-      completedLessons: user.completedLessons,
-      completedTasks: user.completedTasks,
-      level: user.level,
-      rank: user.rank,
-    });
-  } catch (error) {
-    console.error("ERRO AO CONCLUIR AULA:", error);
-
-    return res.status(500).json({
-      error: "Erro ao concluir aula.",
-      details: error.message,
-    });
-  }
-});
-
-app.post("/api/tasks/:id/review", auth, (req, res) => {
-  try {
-    const db = loadDb();
-
-    if (!db.taskReviews) {
-      db.taskReviews = [];
-    }
-
-    const user = db.users.find((item) => item.id === req.user.id);
-
-    if (!user) {
-      return res.status(404).json({ error: "Usuário não encontrado." });
-    }
-
-    const review = {
-      id: uuid(),
-      userId: user.id,
-      taskId: Number(req.params.id),
-      taskTitle: req.body.taskTitle,
-      level: req.body.level,
-      question: req.body.question,
-      studentAnswer: req.body.studentAnswer,
-      score: req.body.score,
-      correctionPt: req.body.correctionPt,
-      betterSentence: req.body.betterSentence,
-      explanation: req.body.explanation,
-      createdAt: new Date().toISOString(),
-    };
-
-    db.taskReviews.push(review);
-
-    if (!Array.isArray(user.completedTasks)) {
-      user.completedTasks = [];
-    }
-
-    if (!user.completedTasks.includes(Number(req.params.id))) {
-      user.completedTasks.push(Number(req.params.id));
-      user.xp = Number(user.xp || 0) + Number(req.body.xp || 30);
-      user.streak = Number(user.streak || 0) + 1;
-    }
-
-    saveDb(db);
-
-    return res.json({
-      review,
-      xp: user.xp,
-      streak: user.streak,
-      completedTasks: user.completedTasks,
-    });
-  } catch (error) {
-    console.error("Erro ao salvar revisão:", error);
-
-    return res.status(500).json({
-      error: "Erro ao salvar revisão.",
-      details: error.message,
-    });
-  }
-});
-
-app.get("/api/tasks/reviews", auth, (req, res) => {
-  try {
-    const db = loadDb();
-
-    if (!db.taskReviews) {
-      db.taskReviews = [];
-    }
-
-    const reviews = db.taskReviews
-      .filter((item) => item.userId === req.user.id)
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-    return res.json(reviews);
-  } catch (error) {
-    return res.status(500).json({
-      error: "Erro ao buscar revisões.",
-      details: error.message,
-    });
-  }
-});
-
 
 const PORT = process.env.PORT || 8080;
 
