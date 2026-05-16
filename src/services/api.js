@@ -12,7 +12,7 @@ export function setToken(token) {
 
 export function logout() {
   localStorage.removeItem("token");
-  window.location.reload();
+  window.location.href = "/";
 }
 
 export async function apiFetch(path, options = {}) {
@@ -27,6 +27,14 @@ export async function apiFetch(path, options = {}) {
     },
   });
 
+  const contentType = response.headers.get("content-type");
+
+  if (!contentType || !contentType.includes("application/json")) {
+    const text = await response.text();
+    console.error("Resposta inválida:", text);
+    throw new Error("Backend não respondeu JSON.");
+  }
+
   const data = await response.json();
 
   if (!response.ok) {
@@ -39,28 +47,19 @@ export async function apiFetch(path, options = {}) {
 export async function login(email, password) {
   const data = await apiFetch("/api/auth/login", {
     method: "POST",
-    body: JSON.stringify({
-      email,
-      password,
-    }),
+    body: JSON.stringify({ email, password }),
   });
 
   setToken(data.token);
-
   return data;
 }
 
 export async function register(name, email, password) {
   const data = await apiFetch("/api/auth/register", {
     method: "POST",
-    body: JSON.stringify({
-      name,
-      email,
-      password,
-    }),
+    body: JSON.stringify({ name, email, password }),
   });
 
   setToken(data.token);
-
   return data;
 }

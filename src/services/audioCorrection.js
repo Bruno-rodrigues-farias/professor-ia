@@ -1,6 +1,8 @@
 import { getToken } from "./api";
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL =
+  import.meta.env.VITE_API_URL ||
+  "https://professor-ia-1.onrender.com";
 
 export async function correctAudioWithAI({ audioBlob, expected, level }) {
   const formData = new FormData();
@@ -17,9 +19,19 @@ export async function correctAudioWithAI({ audioBlob, expected, level }) {
     body: formData,
   });
 
-  if (!response.ok) {
-    throw new Error("Erro ao corrigir áudio.");
+  const contentType = response.headers.get("content-type");
+
+  if (!contentType || !contentType.includes("application/json")) {
+    const text = await response.text();
+    console.error("Resposta inválida do backend:", text);
+    throw new Error("Backend não respondeu JSON.");
   }
 
-  return response.json();
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || "Erro ao corrigir áudio.");
+  }
+
+  return data;
 }
